@@ -27,7 +27,7 @@ library
     import:           warnings
     hs-source-dirs:   src
     exposed-modules:  LambdaArrow
-    build-depends:    base ^>=4.17.2.1, mtl
+    build-depends:    base ^>=4.17.2.1, mtl, parsec
     default-language: Haskell2010
 
 executable lambda-pi
