@@ -37,6 +37,13 @@ executable lambda-pi
     hs-source-dirs:   app
     default-language: Haskell2010
 
+executable lambda-arrow
+    import:           warnings
+    main-is:          LambdaArrowMain.hs
+    build-depends:    base ^>=4.17.2.1, lambda-pi
+    hs-source-dirs:   app
+    default-language: Haskell2010
+
 test-suite test
     type:           exitcode-stdio-1.0
     main-is:        Main.hs

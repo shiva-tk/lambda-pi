@@ -299,3 +299,25 @@ contents p = do
 
 readInferable :: String -> Either ParseError (Inferable, [String])
 readInferable = parse (contents (inferable [])) "<stdin>"
+
+hasKind :: Parser (Name, Info)
+hasKind = parens $ do
+  x <- identifier
+  _ <- lexeme "::"
+  _ <- lexeme "*"
+  return (Global x, HasKind Star)
+
+hasType :: Parser (Name, Info)
+hasType = parens $ do
+  x <- identifier
+  _ <- lexeme "::"
+  t <- types
+  return (Global x, HasType t)
+
+assume :: Parser [(Name, Info)]
+assume = do
+  _ <- lexeme "assume"
+  many1 (try hasKind <|> try hasType)
+
+readAssume :: String -> Either ParseError [(Name, Info)]
+readAssume = parse (contents assume) "<stdin>"
