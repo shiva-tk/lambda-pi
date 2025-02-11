@@ -289,3 +289,13 @@ app xs = do
 
 inferable :: [String] -> Parser (Inferable, [String])
 inferable xs = try (ann xs) <|> try (app xs) <|> var xs
+
+contents :: Parser a -> Parser a
+contents p = do
+  spaces
+  r <- p
+  eof
+  return r
+
+readInferable :: String -> Either ParseError (Inferable, [String])
+readInferable = parse (contents (inferable [])) "<stdin>"
