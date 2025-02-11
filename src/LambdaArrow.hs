@@ -1,6 +1,6 @@
 module LambdaArrow where
 
-import Control.Monad.Except
+import           Control.Monad.Except
 
 
 --------------------------------------------------
