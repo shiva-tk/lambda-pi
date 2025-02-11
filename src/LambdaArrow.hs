@@ -1,6 +1,10 @@
 module LambdaArrow where
 
+import           Control.Applicative  (many, some, (<|>))
 import           Control.Monad.Except
+import           Text.Parsec
+import           Text.Parsec.Char     (letter, oneOf, space)
+import           Text.Parsec.String   (Parser)
 
 
 --------------------------------------------------
@@ -162,30 +166,42 @@ boundFree _ n         = Free n
 --------------------------------------------------
 
 instance Show Type where
-  show (TFree (Global a)) = a
-  show (TFun t t')        = show t <> " -> " <> show t'
-  show _                  = error "Error showing type - expected global type identifier"
+  show (TFree (Global a))     = a
+  show (TFun t@(TFun _ _) t') = "(" <> show t <> ")" <> " -> " <> show t'
+  show (TFun t t')            =  show t  <> " -> " <> show t'
+  show _                      = error "Error showing type - expected global type identifier"
 
 showInferable :: [String] -> Inferable -> String
-showInferable xs = showInferable' xs []
+showInferable xs = fst . showInferable' xs []
 
 showCheckable :: [String] -> Checkable -> String
-showCheckable xs = showCheckable' xs []
+showCheckable xs = fst . showCheckable' xs []
 
-showInferable' :: [String] -> [String] -> Inferable -> String
-showInferable' xs ys (Ann e t)         = showCheckable' xs ys e <> " :: " <> show t
-showInferable' _  ys (Bound i)         = ys !! i
-showInferable' _  _  (Free (Global x)) = x
-showInferable' _  _  (Free _)          = error "Error showing inferable term - expected global identifier"
-showInferable' xs ys (e :@: e')        = "(" <> showInferable' xs ys e <> ") (" <> showCheckable' xs ys e' <> ")"
+showInferable' :: [String] -> [String] -> Inferable -> (String, [String])
+showInferable' xs ys (Ann e t)
+  = (s <> " :: " <> show t, xs')
+  where (s, xs') = showCheckable' xs ys e
+showInferable' xs  ys (Bound i)
+  = (ys !! i, xs)
+showInferable' xs  _  (Free (Global x))
+  = (x, xs)
+showInferable' _  _  (Free _)
+  = error "Error showing inferable term - expected global identifier"
+showInferable' xs ys (e :@: e')
+  = ("(" <> s <> ") (" <> s' <> ")", xs'')
+  where (s, xs') = showInferable' xs ys e
+        (s', xs'')  = showCheckable' xs' ys e'
 
-showCheckable' :: [String] -> [String] -> Checkable -> String
+showCheckable' :: [String] -> [String] -> Checkable -> (String, [String])
 showCheckable' xs ys (Inf e) = showInferable' xs ys e
-showCheckable' xs ys e       = "(λ" <> showCheckable'' xs ys e <> ")"
+showCheckable' xs ys e       = ("(λ" <> s <> ")", xs')
+  where (s, xs') = showCheckable'' xs ys e
 
-showCheckable'' :: [String] -> [String] -> Checkable -> String
-showCheckable'' xs       ys (Inf e) = ". " <> showInferable' xs  ys e
-showCheckable'' (x : xs) ys (Lam e) = " " <> x <> showCheckable'' xs (x : ys) e
+showCheckable'' :: [String] -> [String] -> Checkable -> (String, [String])
+showCheckable'' xs       ys (Inf e) = (". " <> s, xs')
+  where (s, xs') = showInferable' xs  ys e
+showCheckable'' (x : xs) ys (Lam e) = (" " <> x <> s, xs')
+  where (s, xs') = showCheckable'' xs (x : ys) e
 showCheckable'' []       _  (Lam _) = error "Error showing checkable term - not enough binders provided"
 
 instance Show Inferable where
@@ -195,3 +211,13 @@ instance Show Inferable where
 instance Show Checkable where
   show = showCheckable xs
     where xs = map (\n -> "x" <> show n) ([0..] :: [Int])
+
+
+--------------------------------------------------
+--                                              --
+--                   Parsing                    --
+--                                              --
+--------------------------------------------------
+
+-- parseInferable :: Parser (Inferable, [String])
+-- parseInferable = do
