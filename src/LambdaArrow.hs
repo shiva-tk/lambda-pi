@@ -15,13 +15,13 @@ data Inferable
   | Bound Int                  -- A bound variable, represented using De Bruijn indices
   | Free  Name                 -- Free variables are named
   | (:@:) Inferable Checkable  -- Infix operator represents application
-  deriving (Show, Eq)
+  deriving (Eq)
 
 -- Terms with a checkable type
 data Checkable
   = Inf Inferable              -- Inferable terms
   | Lam Checkable              -- Lambda abstraction
-  deriving (Show, Eq)
+  deriving (Eq)
 
 data Name
   = Global String
@@ -32,7 +32,7 @@ data Name
 data Type
   = TFree Name
   | TFun   Type Type
-  deriving (Show, Eq)
+  deriving (Eq)
 
 data Value
   = VLam     (Value -> Value)
@@ -131,3 +131,67 @@ check' i gamma (Lam e) (TFun t t') =
   where i'     = i + 1
         gamma' = (Local (i + 1), HasType t) : gamma
 check' _ _ _ _ = throwError "Inferred type does not match given type"
+
+
+--------------------------------------------------
+--                                              --
+--                  Quotation                   --
+--                                              --
+--------------------------------------------------
+
+quote :: Value -> Checkable
+quote = quote' 0
+
+quote' :: Int -> Value -> Checkable
+quote' i (VLam f)     = Lam (quote' (i + 1) (f (vfree (Quote i))))
+quote' i (VNeutral n) = Inf (neutralQuote' i n)
+
+neutralQuote' :: Int -> Neutral -> Inferable
+neutralQuote' i (NFree n)  = boundFree i n
+neutralQuote' i (NApp n v) = neutralQuote' i n :@: quote' i v
+
+boundFree :: Int -> Name -> Inferable
+boundFree i (Quote k) = Bound (i - k - 1)
+boundFree _ n         = Free n
+
+
+--------------------------------------------------
+--                                              --
+--                Pretty Printing               --
+--                                              --
+--------------------------------------------------
+
+instance Show Type where
+  show (TFree (Global a)) = a
+  show (TFun t t')        = show t <> " -> " <> show t'
+  show _                  = error "Error showing type - expected global type identifier"
+
+showInferable :: [String] -> Inferable -> String
+showInferable xs = showInferable' xs []
+
+showCheckable :: [String] -> Checkable -> String
+showCheckable xs = showCheckable' xs []
+
+showInferable' :: [String] -> [String] -> Inferable -> String
+showInferable' xs ys (Ann e t)         = showCheckable' xs ys e <> " :: " <> show t
+showInferable' _  ys (Bound i)         = ys !! i
+showInferable' _  _  (Free (Global x)) = x
+showInferable' _  _  (Free _)          = error "Error showing inferable term - expected global identifier"
+showInferable' xs ys (e :@: e')        = "(" <> showInferable' xs ys e <> ") (" <> showCheckable' xs ys e' <> ")"
+
+showCheckable' :: [String] -> [String] -> Checkable -> String
+showCheckable' xs ys (Inf e) = showInferable' xs ys e
+showCheckable' xs ys e       = "(λ" <> showCheckable'' xs ys e <> ")"
+
+showCheckable'' :: [String] -> [String] -> Checkable -> String
+showCheckable'' xs       ys (Inf e) = ". " <> showInferable' xs  ys e
+showCheckable'' (x : xs) ys (Lam e) = " " <> x <> showCheckable'' xs (x : ys) e
+showCheckable'' []       _  (Lam _) = error "Error showing checkable term - not enough binders provided"
+
+instance Show Inferable where
+  show = showInferable xs
+    where xs = map (\n -> "x" <> show n) ([0..] :: [Int])
+
+instance Show Checkable where
+  show = showCheckable xs
+    where xs = map (\n -> "x" <> show n) ([0..] :: [Int])
