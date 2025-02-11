@@ -1,9 +1,8 @@
 module LambdaArrow where
 
-import           Control.Applicative  (many, some, (<|>))
 import           Control.Monad.Except
+import           Data.List
 import           Text.Parsec
-import           Text.Parsec.Char     (letter, oneOf, space)
 import           Text.Parsec.String   (Parser)
 
 
@@ -219,5 +218,74 @@ instance Show Checkable where
 --                                              --
 --------------------------------------------------
 
--- parseInferable :: Parser (Inferable, [String])
--- parseInferable = do
+tok :: Parser a -> Parser a
+tok p = p <* spaces
+
+lexeme :: String -> Parser String
+lexeme s = tok (string s)
+
+identifier :: Parser String
+identifier = tok (many1 letter)
+
+parens :: Parser a -> Parser a
+parens p = between (lexeme "(") (lexeme ")") p
+
+-- Parser for a free type (one or more letters)
+freeType :: Parser Type
+freeType = do
+  x <- identifier
+  return $ TFree (Global x)
+
+-- Parser for a type expression with brackets
+types :: Parser Type
+types = funType
+
+-- Parser for atomic types (single variables or parenthesized expressions)
+atomicType :: Parser Type
+atomicType = freeType <|> parens types
+
+-- Parser for function types (right associative)
+funType :: Parser Type
+funType = do
+  ts <- atomicType `sepBy1` lexeme "->"
+  return $ foldr1 TFun ts
+
+lam :: [String] -> Parser (Checkable, [String])
+lam xs = do
+  _          <- tok $ oneOf "λ\\"
+  xs'        <- many1 identifier
+  _          <- lexeme "."
+  (e, xs'')  <- checkable (reverse xs' ++ xs)
+  let n = length xs'
+  return (iterate Lam e !! n, xs' <> xs'')
+
+inf :: [String] -> Parser (Checkable, [String])
+inf xs = do
+  (e, xs') <- inferable xs
+  return (Inf e, xs')
+
+checkable :: [String] -> Parser (Checkable, [String])
+checkable xs = inf xs <|> lam xs
+
+var :: [String] -> Parser (Inferable, [String])
+var xs = do
+  x <- identifier
+  case x `elemIndex` xs of
+    Just i  -> return (Bound i, [])
+    Nothing -> return (Free (Global x), [])
+
+ann :: [String] -> Parser (Inferable, [String])
+ann xs = do
+  (e, xs') <- parens (checkable xs)
+  _ <- lexeme "::"
+  t <- types
+  return (Ann e t, xs')
+
+app :: [String] -> Parser (Inferable, [String])
+app xs = do
+  (e, xs')   <- parens (inferable xs)
+  (e', xs'') <- parens (checkable xs)
+  return (e :@: e', xs' ++ xs'')
+
+inferable :: [String] -> Parser (Inferable, [String])
+inferable xs = try (ann xs) <|> try (app xs) <|> var xs
