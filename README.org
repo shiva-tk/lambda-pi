@@ -4,4 +4,4 @@ An implementation of lambda pi, a minimal, dependently typed lambda calculus.
 
 * References
 
-- A. Löh, C. McBride, W. Swierstra (2010) /A Tutorial Implementation of a Dependently Typed Lambda Calculus,/ Fundamenta Informaticae
+A. Löh, C. McBride, W. Swierstra (2010) /A Tutorial Implementation of a Dependently Typed Lambda Calculus,/ Fundamenta Informaticae
